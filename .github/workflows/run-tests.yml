@@ -11,6 +11,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0 # avoid shallow clone so nbgv can do its work.
 
     # This uses the global.json file to resolve the correct .NET version.
     - name: Setup .NET Core
