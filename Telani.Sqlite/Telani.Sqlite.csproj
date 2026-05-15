@@ -1,0 +1,70 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <Nullable>enable</Nullable>
+
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <NeutralLanguage>de-DE</NeutralLanguage>
+    <IsAotCompatible>true</IsAotCompatible>
+
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <WarningsAsErrors>Nullable</WarningsAsErrors>
+    <!-- 1519 is the warning about missing documentation comments -->
+    <!--<NoWarn>1591</NoWarn>-->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!--<CsWinRTWindowsMetadata>10.0.26100.0</CsWinRTWindowsMetadata>
+    <CsWinRTAotWarningLevel>99</CsWinRTAotWarningLevel>
+    <CsWinRTEnableLogging>True</CsWinRTEnableLogging>-->
+
+    <!-- We currently don't need this usually. CsWinRT generates unsafe blocks and as such enables this automatically. 
+    If we disable CsWinRT for the documentation generation (Built on Linux), the CSWinRT does not enable unsafe blocks,
+    but does complain that they are disabled.-->
+    <!--<AllowUnsafeBlocks>true</AllowUnsafeBlocks>-->
+
+    <!-- This is here because Al.exe does not properly support ARM64 -->
+    <!-- https://github.com/dotnet/sdk/issues/28419#issuecomment-1297060372 -->
+    <!-- This works around that: -->
+    <GenerateSatelliteAssembliesForCore>true</GenerateSatelliteAssembliesForCore>
+  </PropertyGroup>
+
+    <PropertyGroup>
+	    <!-- nuget -->
+	    <PackageId>Telani.Sqlite</PackageId>
+	    <PackageProjectUrl>https://github.com/telani-app/telani.sqlite</PackageProjectUrl>
+	    <Authors>telani-Team</Authors>
+	    <Company>gb&amp;t Gebäudebestand und Technik GmbH</Company>
+	    <Product>Telani.Sqlite</Product>
+	    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+	    <RepositoryUrl>https://github.com/telani-app/telani.sqlite</RepositoryUrl>
+	    <RepositoryType>git</RepositoryType>
+	    <IncludeSymbols>true</IncludeSymbols>
+	    <DebugType>Embedded</DebugType>
+	    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+	    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+	    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(CI)' == 'true'">
+	    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.Text.Json.Serialization.RespectRequiredConstructorParametersDefault" Value="true" />
+    <RuntimeHostConfigurationOption Include="System.Text.Json.Serialization.RespectNullableAnnotationsDefault" Value="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+    <!--<PackageReference Include="Microsoft.Windows.CsWinRT" />-->
+    <PackageReference Include="SQLitePCLRaw.core" Version="3.0.3" />
+    <PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.556">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  
+</Project>

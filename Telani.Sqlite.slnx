@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+  </Folder>
+  <Project Path="Telani.Sqlite.Test/Telani.Sqlite.Test.csproj" Id="0f1a312b-083b-4c1a-ab5c-2bc7b3b406fd">
+  </Project>
+  <Project Path="Telani.Sqlite/Telani.Sqlite.csproj" Id="b0b06ba8-6a7f-4a3c-82ad-304ab4b8ddf6">
+  </Project>
+</Solution>
