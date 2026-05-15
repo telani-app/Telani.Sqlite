@@ -1,0 +1,29 @@
+name: Run tests
+
+on: [push]
+
+jobs:
+  run-tests:
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DOTNET_NOLOGO: true
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    # This uses the global.json file to resolve the correct .NET version.
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: '10.0.x'
+      
+    - name: Display dotnet version
+      run: dotnet --version
+
+    - name: Build
+      run: dotnet build 
+
+    - name: Run tests
+      run: dotnet test
+        

@@ -1,0 +1,53 @@
+name: Telani.Sqlite Continuous Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      DOTNET_NOLOGO: true
+    runs-on: ubuntu-latest
+
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v6
+
+    # This uses the global.json file to resolve the correct .NET version.
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: '10.0.x'
+      
+    - name: Display dotnet version
+      run: dotnet --version
+
+    - name: Build
+      run: dotnet build 
+
+    - name: Run tests
+      run: dotnet test
+
+    - name: Build Release
+      run: dotnet build -c Release
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Nuget-Package
+        if-no-files-found: error
+        path: |
+          ${{ github.workspace }}/src/bin/Release/*.nupkg
+
+    - name: Prep packages
+      run: dotnet nuget add source --username marv51 --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/telani-app/index.json"
+
+    - name: Push package to GitHub packages 
+      run: dotnet nuget push src/bin/Release/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }}  --source "github"
+        
