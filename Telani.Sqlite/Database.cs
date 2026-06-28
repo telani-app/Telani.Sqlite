@@ -1,13 +1,14 @@
 // #define DBTRACEQUERYS
+using Microsoft.Extensions.Logging;
+using SQLitePCL;
 using System.Buffers.Binary;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using Microsoft.Extensions.Logging;
-using SQLitePCL;
 using Telani.Sqlite.Exceptions;
 
 namespace Telani.Sqlite;
@@ -59,7 +60,7 @@ public sealed partial class Database : IDisposable, IDatabase
     private Func<Task>? executeQueryErrorCallback;
 
     // Use the win32-longpath VFS so paths exceeding MAX_PATH (260) work on Windows.
-    private const string SqliteVfs = "win32-longpath";
+    private static readonly string SqliteVfs = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "win32-longpath" : string.Empty;
 
     // How long SQLite waits for a held lock before giving up with SQLITE_BUSY.
     private const int BusyTimeoutMs = 5000;
