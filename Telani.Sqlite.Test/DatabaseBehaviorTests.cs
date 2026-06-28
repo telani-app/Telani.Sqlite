@@ -37,17 +37,17 @@ public sealed class DatabaseBehaviorTests
     }
 
     [TestMethod]
-    public async Task Initialize_SetsBusyTimeout()
+    public async Task InitializeSetsBusyTimeout()
     {
         using var db = await CreateInitializedAsync();
 
         using var reader = await db.ExecuteSelectQuery("PRAGMA busy_timeout");
-        Assert.IsTrue(await reader.ReadAsync());
+        Assert.IsTrue(await reader.ReadAsync(testContext.CancellationToken));
         Assert.AreEqual(5000, reader.GetInt32(0));
     }
 
     [TestMethod]
-    public async Task ExecuteSingle_CommitsWriteAndReleasesLock()
+    public async Task ExecuteSingleCommitsWriteAndReleasesLock()
     {
         using var db = await CreateInitializedAsync();
 
@@ -59,7 +59,7 @@ public sealed class DatabaseBehaviorTests
     }
 
     [TestMethod]
-    public async Task ExecuteSingle_ReleasesLock_WhenStatementFails()
+    public async Task ExecuteSingleReleasesLockWhenStatementFails()
     {
         using var db = await CreateInitializedAsync();
 
@@ -81,7 +81,7 @@ public sealed class DatabaseBehaviorTests
     }
 
     [TestMethod]
-    public async Task ExecuteQuery_WorksInsideTransaction()
+    public async Task ExecuteQueryWorksInsideTransaction()
     {
         using var db = await CreateInitializedAsync();
 
@@ -93,7 +93,7 @@ public sealed class DatabaseBehaviorTests
     }
 
     [TestMethod]
-    public async Task Backup_ReleasesLock_SoWritesContinue()
+    public async Task BackupReleasesLockSoWritesContinue()
     {
         var path = Path.Combine(Path.GetTempPath(), $"telani-sqlite-test-{Guid.NewGuid():N}.telani");
         var lockPath = Path.Combine(Path.GetTempPath(), "~$" + Path.GetFileName(path) + ".lock");
@@ -123,5 +123,12 @@ public sealed class DatabaseBehaviorTests
                 }
             }
         }
+    }
+
+    private readonly TestContext testContext;
+
+    public DatabaseBehaviorTests(TestContext testContext)
+    {
+        this.testContext = testContext;
     }
 }
