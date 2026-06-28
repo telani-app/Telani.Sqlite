@@ -24,6 +24,11 @@ public sealed partial class Database : IDisposable, IDatabase
 
     private readonly SemaphoreSlim translock = new(1);
 
+    // True while a maintenance operation (e.g. an online backup) holds <see cref="translock"/>
+    // without an active DB transaction. Used to relax the InTransaction invariant, which otherwise
+    // assumes the lock is only ever held while a transaction is open.
+    private volatile bool maintenanceInProgress;
+
     private SQLitePCL.sqlite3? conn;
     private bool hasConnection;
 
@@ -55,6 +60,9 @@ public sealed partial class Database : IDisposable, IDatabase
 
     // Use the win32-longpath VFS so paths exceeding MAX_PATH (260) work on Windows.
     private const string SqliteVfs = "win32-longpath";
+
+    // How long SQLite waits for a held lock before giving up with SQLITE_BUSY.
+    private const int BusyTimeoutMs = 5000;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Database"/> class,
@@ -252,6 +260,10 @@ public sealed partial class Database : IDisposable, IDatabase
             ThrowSqliteError(conn, result);
         }
         hasConnection = true;
+
+        // Wait for a transient lock (e.g. a concurrent backup, or another connection/process)
+        // instead of failing instantly with SQLITE_BUSY ("database is locked").
+        SQLitePCL.raw.sqlite3_busy_timeout(conn, BusyTimeoutMs);
 
         // not for testing
         if (dbPath != ":memory:" && !readOnly)
@@ -589,7 +601,9 @@ public sealed partial class Database : IDisposable, IDatabase
             }
             else
             {
-                Debug.Assert(translock.CurrentCount > 0);
+                // The lock may legitimately be held without a transaction during a maintenance
+                // operation (e.g. an online backup), which acquires translock but issues no BEGIN.
+                Debug.Assert(translock.CurrentCount > 0 || maintenanceInProgress);
             }
             return result == 0;
         }
@@ -857,6 +871,22 @@ public sealed partial class Database : IDisposable, IDatabase
         {
             throw new InvalidOperationException("dbPath not set");
         }
+
+        // Backup acquires translock itself (below); it must not be called while a transaction is
+        // open on this flow, or the non-reentrant semaphore would deadlock.
+        Debug.Assert(!InTransaction, "Backup() must not be called while a transaction is active.");
+
+        // The online backup API is not a SQL transaction, but it reads from the live connection
+        // and must not race the app's writes. Hold translock (without a BEGIN) so that backup and
+        // write transactions are mutually exclusive.
+        var gotLock = await translock.WaitAsync(TransactionTimeout);
+        if (!gotLock)
+        {
+            throw new TimeoutException("Could not acquire transaction lock for backup in a reasonable time.");
+        }
+        maintenanceInProgress = true;
+        try
+        {
         return await Task.Run(async () =>
         {
             int flags = SQLitePCL.raw.SQLITE_OPEN_READWRITE | SQLitePCL.raw.SQLITE_OPEN_CREATE;
@@ -908,6 +938,12 @@ public sealed partial class Database : IDisposable, IDatabase
             }
             return backupPath;
         });
+        }
+        finally
+        {
+            maintenanceInProgress = false;
+            translock.Release();
+        }
     }
 
     /// <summary>
