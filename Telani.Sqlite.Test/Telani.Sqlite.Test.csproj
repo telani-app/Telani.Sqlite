@@ -22,8 +22,8 @@
   <ItemGroup>
     <PackageReference Include="Moq" Version="4.20.72" />
     <!-- The library depends only on SQLitePCLRaw.core; tests must supply a native provider.
-         This config package auto-registers e_sqlite3 (same provider the app uses). -->
-    <PackageReference Include="sqlitepclraw.config.e_sqlite3" Version="3.0.3" />
+         bundle_e_sqlite3 ships the e_sqlite3 native lib for every RID (incl. the Linux CI box). -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
   </ItemGroup>
 
   <ItemGroup>
