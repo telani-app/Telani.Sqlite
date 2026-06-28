@@ -628,7 +628,37 @@ public sealed partial class Database : IDisposable, IDatabase
     public Task ExecuteQuery(string query) => ExecuteQuery(query, null);
 
     /// <inheritdoc />
-    public async Task ExecuteQuery(string query, DbParameter[]? parameters)
+    // NOTE: a future PR will add Debug.Assert(InTransaction) here, once all write call sites are
+    // routed through transactions or ExecuteSingle and the internal raw callers (BEGIN/COMMIT/
+    // PRAGMA/VACUUM) use ExecuteQueryRaw. Until then this just forwards so nothing trips.
+    public Task ExecuteQuery(string query, DbParameter[]? parameters) => ExecuteQueryRaw(query, parameters);
+
+    /// <inheritdoc />
+    public async Task ExecuteSingle(string query, DbParameter[]? parameters = null)
+    {
+        await StartTransaction(immediate: true);
+        try
+        {
+            await ExecuteQueryRaw(query, parameters);
+        }
+        catch
+        {
+            // The failed statement may have auto-rolled-back the transaction; only issue a COMMIT
+            // if one is still active, otherwise just release the lock. CommitTransaction releases
+            // translock in either case, so it must be called exactly once on this path.
+            await CommitTransaction(transactionWasCancelled: !InTransaction);
+            throw;
+        }
+        await CommitTransaction();
+    }
+
+    /// <summary>
+    /// Raw execution primitive with no transaction-state checks. Used for transaction control
+    /// (BEGIN/COMMIT), PRAGMAs and VACUUM, and by the public write methods. The public
+    /// <see cref="ExecuteQuery(string, DbParameter[])"/> will assert it runs inside a transaction
+    /// in a future PR; this primitive intentionally does not.
+    /// </summary>
+    private async Task ExecuteQueryRaw(string query, DbParameter[]? parameters)
     {
         // check if db is really open?
         if (hasConnection)
