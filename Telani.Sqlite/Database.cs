@@ -289,9 +289,9 @@ public sealed partial class Database : IDisposable, IDatabase
                 }
             }
         }
-        await ExecuteQuery(string.Format(CultureInfo.InvariantCulture, "PRAGMA foreign_keys = {0};", checkForeignKeys ? "ON" : "OFF"));
+        await ExecuteQueryRaw(string.Format(CultureInfo.InvariantCulture, "PRAGMA foreign_keys = {0};", checkForeignKeys ? "ON" : "OFF"), null);
 
-        await ExecuteQuery("PRAGMA encoding = \"UTF-8\";");
+        await ExecuteQueryRaw("PRAGMA encoding = \"UTF-8\";", null);
 
         // var options = GetCompilerOptions();
         var version = await ExecuteCountQuery("PRAGMA user_version;", null);
@@ -410,7 +410,7 @@ public sealed partial class Database : IDisposable, IDatabase
     {
         if (migration.DisableForeignKeysForMigration)
         {
-            await ExecuteQuery("PRAGMA foreign_keys=OFF");
+            await ExecuteQueryRaw("PRAGMA foreign_keys=OFF", null);
         }
         await StartTransaction(immediate: true);
         foreach (var query in migration.Statements)
@@ -432,7 +432,7 @@ public sealed partial class Database : IDisposable, IDatabase
         await CommitTransaction();
         if (migration.DisableForeignKeysForMigration && checkForeignKeys)
         {
-            await ExecuteQuery("PRAGMA foreign_keys=ON");
+            await ExecuteQueryRaw("PRAGMA foreign_keys=ON", null);
         }
     }
 
@@ -562,7 +562,18 @@ public sealed partial class Database : IDisposable, IDatabase
         {
             throw new TimeoutException("Could not acquire transaction lock in a reasonable time.");
         }
-        await ExecuteQuery(immediate ? "BEGIN IMMEDIATE;" : "BEGIN;");
+        try
+        {
+            await ExecuteQueryRaw(immediate ? "BEGIN IMMEDIATE;" : "BEGIN;", null);
+        }
+        catch
+        {
+            // BEGIN failed (e.g. SQLITE_BUSY outlasting busy_timeout): no transaction was started,
+            // so release the lock we just acquired. This must be a catch, not a finally — on
+            // success the lock has to stay held until CommitTransaction releases it.
+            translock.Release();
+            throw;
+        }
     }
 
     /// <inheritdoc />
@@ -572,7 +583,7 @@ public sealed partial class Database : IDisposable, IDatabase
         {
             if (!transactionWasCancelled)
             {
-                await ExecuteQuery("COMMIT;");
+                await ExecuteQueryRaw("COMMIT;", null);
             }
         }
         finally
@@ -628,10 +639,13 @@ public sealed partial class Database : IDisposable, IDatabase
     public Task ExecuteQuery(string query) => ExecuteQuery(query, null);
 
     /// <inheritdoc />
-    // NOTE: a future PR will add Debug.Assert(InTransaction) here, once all write call sites are
-    // routed through transactions or ExecuteSingle and the internal raw callers (BEGIN/COMMIT/
-    // PRAGMA/VACUUM) use ExecuteQueryRaw. Until then this just forwards so nothing trips.
-    public Task ExecuteQuery(string query, DbParameter[]? parameters) => ExecuteQueryRaw(query, parameters);
+    public Task ExecuteQuery(string query, DbParameter[]? parameters)
+    {
+        // Public writes must run inside a transaction; use ExecuteSingle for a one-off write.
+        // Transaction control (BEGIN/COMMIT), PRAGMAs and VACUUM use ExecuteQueryRaw to bypass this.
+        Debug.Assert(InTransaction, "ExecuteQuery must be called inside a transaction; use ExecuteSingle for a single write.");
+        return ExecuteQueryRaw(query, parameters);
+    }
 
     /// <inheritdoc />
     public async Task ExecuteSingle(string query, DbParameter[]? parameters = null)
@@ -1030,7 +1044,7 @@ public sealed partial class Database : IDisposable, IDatabase
                 await StartTransaction(immediate: true);
                 await ExecuteQuery("pragma auto_vacuum=2");
                 await CommitTransaction();
-                await ExecuteQuery("VACUUM");
+                await ExecuteQueryRaw("VACUUM", null);
             }
         });
 
