@@ -76,6 +76,17 @@ public interface IDatabase : IDisposable
     Task ExecuteQuery(string query);
 
     /// <summary>
+    /// Executes a single write statement inside its own immediate transaction, serialized
+    /// through the internal transaction lock. Use this for one-off writes that are not part of
+    /// a larger transaction, instead of relying on SQLite's implicit autocommit (which bypasses
+    /// that lock and is therefore not serialized against the rest of the app's writes).
+    /// </summary>
+    /// <param name="query">the sql query.</param>
+    /// <param name="parameters">parameters to fill the query</param>
+    /// <returns>a task to await the completion</returns>
+    Task ExecuteSingle(string query, DbParameter[]? parameters = null);
+
+    /// <summary>
     /// Insert a value into the database. This will execute the query
     /// and then get the last inserted rowid to return.
     /// </summary>
