@@ -126,7 +126,7 @@ internal sealed partial class SQLiteReader : DbDataReader
         int tries = 0;
         while (IsBusy(res = SQLitePCL.raw.sqlite3_step(_statement)))
         {
-            if (tries > 20)
+            if (tries > 15)
             {
                 break;
             }

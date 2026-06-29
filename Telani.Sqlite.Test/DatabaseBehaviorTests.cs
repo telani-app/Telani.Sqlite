@@ -43,7 +43,7 @@ public sealed class DatabaseBehaviorTests
 
         using var reader = await db.ExecuteSelectQuery("PRAGMA busy_timeout");
         Assert.IsTrue(await reader.ReadAsync(testContext.CancellationToken));
-        Assert.AreEqual(5000, reader.GetInt32(0));
+        Assert.AreEqual(3000, reader.GetInt32(0));
     }
 
     [TestMethod]
@@ -122,6 +122,25 @@ public sealed class DatabaseBehaviorTests
                     File.Delete(p);
                 }
             }
+        }
+    }
+
+    [TestMethod]
+    public async Task ExecuteQueryThrowsOutsideTransactionWhenDebugChecksEnabled()
+    {
+        using var db = await CreateInitializedAsync();
+
+        // The opt-in toggle gives the otherwise-Debug-only invariant teeth in release builds too,
+        // so this must throw regardless of build configuration. Restore the static flag afterwards.
+        Database.DebugChecksEnabled = true;
+        try
+        {
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                () => db.ExecuteQuery("INSERT INTO T (V) VALUES ('x')"));
+        }
+        finally
+        {
+            Database.DebugChecksEnabled = false;
         }
     }
 

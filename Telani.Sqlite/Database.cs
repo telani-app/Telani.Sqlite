@@ -20,6 +20,19 @@ public sealed partial class Database : IDisposable, IDatabase
 {
     private static bool loggerAlreadySetup;
 
+    /// <summary>
+    /// When <see langword="true"/>, public-API misuse checks that are otherwise only enforced via
+    /// <see cref="Debug.Assert(bool)"/> (and therefore compiled out of release builds) are enforced
+    /// in every build, throwing <see cref="InvalidOperationException"/> on violation.
+    /// </summary>
+    /// <remarks>
+    /// Disabled by default so released builds carry no extra cost. Library consumers can opt in
+    /// (e.g. during their own integration tests) to catch incorrect usage that the shipped NuGet
+    /// package — which is always a release build — would otherwise silently allow. When disabled,
+    /// each guarded call site costs only a single boolean read.
+    /// </remarks>
+    public static bool DebugChecksEnabled { get; set; }
+
     // the last created instance is statically made accessible here.
     private static Database? lastInstance;
 
@@ -63,7 +76,7 @@ public sealed partial class Database : IDisposable, IDatabase
     private static readonly string? SqliteVfs = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "win32-longpath" : null;
 
     // How long SQLite waits for a held lock before giving up with SQLITE_BUSY.
-    private const int BusyTimeoutMs = 5000;
+    private const int BusyTimeoutMs = 3000;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Database"/> class,
@@ -644,6 +657,10 @@ public sealed partial class Database : IDisposable, IDatabase
     {
         // Public writes must run inside a transaction; use ExecuteSingle for a one-off write.
         // Transaction control (BEGIN/COMMIT), PRAGMAs and VACUUM use ExecuteQueryRaw to bypass this.
+        if (DebugChecksEnabled && !InTransaction)
+        {
+            throw new InvalidOperationException("ExecuteQuery must be called inside a transaction; use ExecuteSingle for a single write.");
+        }
         Debug.Assert(InTransaction, "ExecuteQuery must be called inside a transaction; use ExecuteSingle for a single write.");
         return ExecuteQueryRaw(query, parameters);
     }
@@ -919,6 +936,10 @@ public sealed partial class Database : IDisposable, IDatabase
 
         // Backup acquires translock itself (below); it must not be called while a transaction is
         // open on this flow, or the non-reentrant semaphore would deadlock.
+        if (DebugChecksEnabled && InTransaction)
+        {
+            throw new InvalidOperationException("Backup() must not be called while a transaction is active.");
+        }
         Debug.Assert(!InTransaction, "Backup() must not be called while a transaction is active.");
 
         // The online backup API is not a SQL transaction, but it reads from the live connection
