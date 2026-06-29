@@ -53,7 +53,7 @@ internal sealed class SQLiteCommand
         SQLitePCL.sqlite3_stmt statement;
         while (IsBusy(result = SQLitePCL.raw.sqlite3_prepare_v2(conn, commandText, out statement)))
         {
-            if (tries > 20)
+            if (tries > 15)
             {
                 break;
             }
@@ -82,17 +82,21 @@ internal sealed class SQLiteCommand
             int tries = 0;
             while (IsBusy(status = SQLitePCL.raw.sqlite3_step(statement)))
             {
-                // From SQLite Docs: "If the statement is a COMMIT [..], then you can retry the statement."
-                if (CommandText?.ToUpperInvariant() is not "COMMIT;" and not "COMMIT")
+                // SQLite docs: on SQLITE_BUSY a statement may be retried if it is a COMMIT, or if it
+                // runs outside an explicit transaction. A BEGIN / BEGIN IMMEDIATE that returns BUSY
+                // failed before opening the transaction, so retrying it is equally safe (nothing
+                // partial to roll back). Any other statement is inside an open transaction and must
+                // be rolled back rather than retried, so we stop and surface the error.
+                if (CommandText?.ToUpperInvariant() is not ("COMMIT;" or "COMMIT" or "BEGIN;" or "BEGIN" or "BEGIN IMMEDIATE;" or "BEGIN IMMEDIATE"))
                 {
                     break;
                 }
-                if (tries > 20)
+                if (tries > 15)
                 {
                     break;
                 }
                 tries++;
-                Task.Delay(150);
+                Thread.Sleep(150);
             }
 
             if (status != SQLitePCL.raw.SQLITE_DONE)
