@@ -353,7 +353,11 @@ public sealed partial class Database : IDisposable, IDatabase
         }
         else
         {
-            if (version < migrations.Count)
+            // The file is read-only, so we cannot apply migrations. If the file is behind the
+            // current schema, it would need migrating to be opened, which is not possible here.
+            // Compare against the latest schema version number (e.g. 303), NOT migrations.Count
+            // (the number of migrations, ~45) which is unrelated to the version numbering.
+            if (version < CurrentDatabaseVersion)
             {
                 throw new MigrationsNotPossibleBecauseReadOnlyException();
             }
